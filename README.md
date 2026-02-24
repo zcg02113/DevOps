@@ -13,6 +13,79 @@
   kubernetes==35.0.0
   PyMySQL==1.1.2
 ```
+## 前端 
+```bash
+# 安装依赖
+pip3 install -r requirements.txt -i https://mirrors.aliyun.com/pypi/simple
+# 安装与配置uwsgi
+pip3 install uwsgi -i https://mirrors.aliyun.com/pypi/simple
+mkdir /root/DevOps/uwsgi/
+vim /root/DevOps/uwsgi/uwsgi.ini
+[uwsgi]
+# vi /opt/devops/uwsgi/uwsgi.ini 
+# 1. 项目与环境
+# ========================
+# 项目目录
+chdir           = /root/DevOps/
+# Django 的 wsgi 入口
+module          = DevOps.wsgi:application
+# 虚拟环境的路径
+virtualenv      = /root/DevOps/venv/
+
+# 2. 运行模式 
+# ========================
+# 注释掉 socket 模式，因为它需要 Nginx 配合
+# socket          = /root/DevOps/uwsgi/uwsgi.sock
+# 启用 http 模式，让浏览器可以直接访问
+http            = 0.0.0.0:8080
+
+# 3. 进程与日志
+# ========================
+# 进程个数
+processes       = 4 
+# 进程pid文件
+pidfile         = /root/DevOps/uwsgi/uwsgi.pid
+# 以守护进程模式运行，并记录日志
+daemonize       = /root/DevOps/uwsgi/uwsgi.log
+
+vi /usr/lib/systemd/system/uwsgi.service 
+[Unit]
+Description=HTTP Interface Server
+
+[Service]
+Type=forking
+ExecStart=/root/DevOps/venv/bin/uwsgi --ini /root/DevOps/uwsgi/uwsgi.ini
+ExecReload=/bin/kill -s HUP $MAINPID
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+
+
+systemctl daemon-reload
+systemctl start uwsgi
+systemctl enable uwsgi
+
+# 4. 静态文件 
+# ========================
+# uwsgi 
+static-map      = /static=/root/DevOps/static
+```
+## 后端 
+```bash
+#/root/DevOps/DevOps/settings.py修改本地数据库
+  DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.mysql',
+        'NAME': 'devops',
+        'USER': 'devops',
+        'PASSWORD': '123456',
+        'HOST': '127.0.0.1',  
+        'PORT': '3306',
+    }
+}
+
+```
 <img width="1858" height="854" alt="image" src="https://github.com/user-attachments/assets/94d4efce-de61-4ac1-b7ae-f2f1604e2549" />
 <img width="1876" height="826" alt="image" src="https://github.com/user-attachments/assets/1a009812-b705-4441-8b76-1004728df765" />
 <img width="1863" height="872" alt="image" src="https://github.com/user-attachments/assets/1e2d27ba-dfad-48e9-b8ea-97fb9b286996" />
