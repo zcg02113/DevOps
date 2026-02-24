@@ -1,0 +1,14 @@
+,cols: [[ //表头
+                {field: 'name', title: '名称',  sort: true, fixed: 'left'}
+                ,{field: 'labels', title: '标签',templet: labels}
+                ,{field: 'create_time', title: '创建时间'}
+                ,{fixed: 'right', title:'操作', toolbar: '#barDemo', width:200}   //添加删除功能
+            ]]
+        });
+        //标签格式化
+            function labels(d){
+                for(key in d.labels){
+                    console.log(key,d.labels[key])
+                }
+            }
+//不是很能理解templet将label的值传入函数？

@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>K8s 资源监控仪表盘</title>
+    <!-- 引入 Layui CSS -->
+    <link rel="stylesheet" href="https://cdn.staticfile.org/layui/2.9.9/css/layui.css" media="all">
+    <style>
+        /* 自定义样式，让卡片和数字更好看 */
+        .layui-card .layui-card-body {
+            padding: 20px;
+        }
+        .overview-card-body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100px;
+        }
+        .overview-card-body .count {
+            font-size: 36px;
+            font-weight: bold;
+            color: #16b777;
+        }
+        .overview-card-body .unit {
+            font-size: 16px;
+            color: #666;
+        }
+        .overview-card-body .status-text {
+            font-size: 14px;
+            color: #999;
+        }
+    </style>
+</head>
+<body class="layui-layout-body">
+
+<div class="layui-layout layui-layout-admin">
+    <div class="layui-header">
+        <div class="layui-logo">K8s Admin</div>
+    </div>
+
+    <div class="layui-side layui-bg-black">
+        <div class="layui-side-scroll">
+            <!-- 左侧导航区域 -->
+            <ul class="layui-nav layui-nav-tree" lay-filter="test">
+                <li class="layui-nav-item layui-nav-itemed">
+                    <a class="" href="javascript:;">集群监控</a>
+                    <dl class="layui-nav-child">
+                        <dd class="layui-this"><a href="javascript:;">资源监控</a></dd>
+                        <dd><a href="javascript:;">组件监控</a></dd>
+                    </dl>
+                </li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- 内容主体区域 -->
+    <div class="layui-body" style="padding: 15px;">
+        <div class="layui-row layui-col-space15">
+            <!-- 1. 集群概览 -->
+            <div class="layui-col-md3">
+                <div class="layui-card">
+                    <div class="layui-card-header">节点状态</div>
+                    <div class="layui-card-body overview-card-body">
+                        <span id="node-ready-count" class="count">0</span>
+                        <span class="status-text">Ready / Total</span>
+                    </div>
+                </div>
+            </div>
+            <div class="layui-col-md3">
+                <div class="layui-card">
+                    <div class="layui-card-header">Pod 状态</div>
+                    <div class="layui-card-body overview-card-body">
+                        <span id="pod-running-count" class="count">0</span>
+                        <span class="status-text">Running / Total</span>
+                    </div>
+                </div>
+            </div>
+            <div class="layui-col-md3">
+                <div class="layui-card">
+                    <div class="layui-card-header">集群 CPU 使用率</div>
+                    <div class="layui-card-body overview-card-body">
+                         <span id="cluster-cpu-usage" class="count">0.0</span>
+                         <span class="unit">%</span>
+                    </div>
+                </div>
+            </div>
+            <div class="layui-col-md3">
+                <div class="layui-card">
+                    <div class="layui-card-header">集群内存使用率</div>
+                    <div class="layui-card-body overview-card-body">
+                        <span id="cluster-mem-usage" class="count">0.0</span>
+                        <span class="unit">%</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2. 节点和 Pod 资源排行 -->
+            <div class="layui-col-md6">
+                <div class="layui-card">
+                    <div class="layui-card-header">Top 5 节点 CPU 使用率</div>
+                    <div class="layui-card-body">
+                        <div id="node-cpu-chart" style="width: 100%; height: 300px;"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="layui-col-md6">
+                <div class="layui-card">
+                    <div class="layui-card-header">Top 5 Pod 内存使用量</div>
+                    <div class="layui-card-body">
+                        <div id="pod-mem-chart" style="width: 100%; height: 300px;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3. 集群资源趋势 -->
+            <div class="layui-col-md12">
+                <div class="layui-card">
+                    <div class="layui-card-header">集群资源使用趋势 (CPU/内存)</div>
+                    <div class="layui-card-body">
+                        <div id="cluster-trend-chart" style="width: 100%; height: 400px;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 引入 JS 文件 -->
+<script src="https://cdn.staticfile.org/layui/2.9.9/layui.js"></script>
+<script src="https://cdn.staticfile.org/jquery/3.7.1/jquery.min.js"></script>
+<script src="https://cdn.staticfile.net/echarts/5.5.0/echarts.min.js"></script>
+
+<script>
+layui.use(['element', 'layer'], function(){
+    var element = layui.element;
+    var $ = layui.jquery;
+
+    // ==========================================================
+    // 1. 初始化所有 ECharts 实例
+    // ==========================================================
+    var nodeCpuChart = echarts.init(document.getElementById('node-cpu-chart'));
+    var podMemChart = echarts.init(document.getElementById('pod-mem-chart'));
+    var clusterTrendChart = echarts.init(document.getElementById('cluster-trend-chart'));
+
+    // ==========================================================
+    // 2. MOCK DATA: 模拟从后端获取的数据
+    // 在你的项目中，你应该用 $.ajax 从 Django API 获取真实数据
+    // ==========================================================
+    function getMockData() {
+        // 概览数据
+        const overview = {
+            nodesReady: Math.floor(Math.random() * 5) + 5, // 5-9个
+            nodesTotal: 10,
+            podsRunning: Math.floor(Math.random() * 50) + 100, // 100-149个
+            podsTotal: 150,
+            clusterCpuUsage: (Math.random() * 20 + 30).toFixed(1), // 30-50%
+            clusterMemUsage: (Math.random() * 25 + 40).toFixed(1), // 40-65%
+        };
+
+        // Top 5 节点 CPU
+        const topNodes = Array.from({length: 5}, (_, i) => ({
+            name: `node-0${i+1}`,
+            value: (Math.random() * 50 + 20).toFixed(1) // 20-70%
+        })).sort((a, b) => b.value - a.value);
+
+        // Top 5 Pod 内存
+        const topPods = Array.from({length: 5}, (_, i) => ({
+            name: `pod-svc${i+1}-xyz`,
+            value: (Math.random() * 400 + 100).toFixed(0) // 100-500 Mi
+        })).sort((a, b) => b.value - a.value);
+
+        return { overview, topNodes, topPods };
+    }
+
+    // 趋势图的模拟数据
+    let trendDataCpu = [];
+    let trendDataMem = [];
+    let time = new Date().getTime();
+    function getMockTrendData() {
+        time += 5000; // 每次增加5秒
+        let newCpu = (Math.random() * 20 + 30).toFixed(1);
+        let newMem = (Math.random() * 25 + 40).toFixed(1);
+
+        if (trendDataCpu.length > 100) {
+            trendDataCpu.shift();
+            trendDataMem.shift();
+        }
+
+        trendDataCpu.push({ name: time, value: [time, newCpu] });
+        trendDataMem.push({ name: time, value: [time, newMem] });
+        return { trendDataCpu, trendDataMem };
+    }
+
+
+    // ==========================================================
+    // 3. 更新仪表盘的函数
+    // ==========================================================
+    function updateDashboard() {
+        // 在这里发起 Ajax 请求
+        // $.ajax({ url: '/your/api/endpoint', success: function(res){ ... }})
+        // 为了演示，我们使用模拟数据
+        const data = getMockData();
+        const trendData = getMockTrendData();
+
+        // 更新概览卡片
+        $('#node-ready-count').text(`${data.overview.nodesReady} / ${data.overview.nodesTotal}`);
+        $('#pod-running-count').text(`${data.overview.podsRunning} / ${data.overview.podsTotal}`);
+        $('#cluster-cpu-usage').text(data.overview.clusterCpuUsage);
+        $('#cluster-mem-usage').text(data.overview.clusterMemUsage);
+
+        // 更新 Top 5 节点 CPU 图表 (条形图)
+        nodeCpuChart.setOption({
+            tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+            grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
+            xAxis: { type: 'value', boundaryGap: [0, 0.01], axisLabel: { formatter: '{value}%' } },
+            yAxis: { type: 'category', data: data.topNodes.map(item => item.name).reverse() },
+            series: [{
+                name: 'CPU Usage',
+                type: 'bar',
+                data: data.topNodes.map(item => item.value).reverse(),
+                label: { show: true, position: 'right', formatter: '{c}%' }
+            }]
+        });
+
+        // 更新 Top 5 Pod 内存图表 (条形图)
+        podMemChart.setOption({
+            tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+            grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
+            xAxis: { type: 'value', boundaryGap: [0, 0.01], axisLabel: { formatter: '{value} Mi' } },
+            yAxis: { type: 'category', data: data.topPods.map(item => item.name).reverse() },
+            series: [{
+                name: 'Memory Usage',
+                type: 'bar',
+                color: '#5470c6',
+                data: data.topPods.map(item => item.value).reverse(),
+                label: { show: true, position: 'right', formatter: '{c} Mi' }
+            }]
+        });
+
+        // 更新集群资源趋势图 (折线图)
+        clusterTrendChart.setOption({
+            tooltip: { trigger: 'axis' },
+            legend: { data: ['CPU Usage', 'Memory Usage'] },
+            grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
+            xAxis: { type: 'time', splitLine: { show: false } },
+            yAxis: { type: 'value', axisLabel: { formatter: '{value} %' } },
+            series: [
+                { name: 'CPU Usage', type: 'line', showSymbol: false, data: trendData.trendDataCpu, areaStyle: {} },
+                { name: 'Memory Usage', type: 'line', showSymbol: false, data: trendData.trendDataMem, areaStyle: {} }
+            ]
+        });
+    }
+
+    // ==========================================================
+    // 4. 首次加载并设置定时刷新
+    // ==========================================================
+    updateDashboard();
+    setInterval(updateDashboard, 5000); // 每5秒刷新一次数据
+});
+</script>
+
+</body>
+</html>

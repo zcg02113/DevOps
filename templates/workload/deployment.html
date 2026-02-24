@@ -1,0 +1,284 @@
+{% extends 'index.html' %}
+{% block title %}Deployment{% endblock %}
+{% block item-2 %}layui-nav-itemed{% endblock %}
+{% block item-2-1 %}layui-this{% endblock %}
+{% block  context %}
+     <span class="layui-breadcrumb">
+        <a href="{% url 'home' %}">首页</a>
+        <a href="#">工作负载</a>
+        <a><cite>Deployment</cite></a>
+    </span>
+    <hr>
+    <div class="layui-card" style="display: none" id="create">
+        <div class="layui-card-body">
+
+        <fieldset class="layui-elem-field layui-field-title" style="margin-top: 20px;">
+          <legend>创建Deployment</legend>
+        </fieldset>
+
+        <form class="layui-form " onclick="return false">
+
+            <div class="layui-form-item">
+                <label class="layui-form-label">名称：</label>
+                <div class="layui-input-block">
+                  <input type="text" name="name" lay-verify="required" lay-reqtext="名称是必填项，不能为空！" placeholder="" autocomplete="off" class="layui-input">
+                </div>
+            </div>
+
+            <div class="layui-form-item">
+                <label class="layui-form-label">命名空间：</label>
+                <div class="layui-input-block">
+                <select name="namespace"  lay-verify="required" id="ns">
+                </select>
+                </div>
+             </div>
+
+            <div class="layui-form-item">
+                <label class="layui-form-label">镜像：</label>
+                <div class="layui-input-block">
+                  <input type="text" name="image" lay-verify="required" lay-reqtext="镜像是必填项，不能为空！" placeholder="" autocomplete="off" class="layui-input">
+                </div>
+            </div>
+
+            <div class="layui-form-item">
+                <label class="layui-form-label">副本数：</label>
+                <div class="layui-input-block">
+                  <input type="text" name="replicas" value="3" autocomplete="off" class="layui-input">
+                </div>
+            </div>
+
+            <div class="layui-form-item">
+                <label class="layui-form-label">标签：</label>
+                <div class="layui-input-block">
+                  <input type="text" name="labels" lay-verify="required" lay-reqtext="标签是必填项，不能为空！" placeholder="示例: project=ms,app=gateway" autocomplete="off" class="layui-input">
+                </div>
+            </div>
+
+            <div class="layui-form-item">
+                <label class="layui-form-label">通用配置：</label>
+                <div class="layui-input-block">
+                  <input type="radio" name="resources" value="0.5c1g" title="0.5核1G" checked="">
+                  <input type="radio" name="resources" value="1c2g" title="1核2G">
+                  <input type="radio" name="resources" value="2c4g" title="2核4G">
+                  <input type="radio" name="resources" value="4c8g" title="4核8G" >
+                  <input type="radio" name="resources"  title="自定义" disabled="">
+                </div>
+            </div>
+
+            <div class="layui-form-item">
+                <label class="layui-form-label">健康检查：</label>
+                <div class="layui-input-block">
+                  <input type="checkbox" name="health[liveness]" title="存活检查">
+                  <input type="checkbox" name="health[readiness]" title="就绪检查" >
+                </div>
+            </div>
+
+            <div class="layui-form-item">
+                <div class="layui-input-block">
+                  <button type="submit" class="layui-btn" lay-submit="" lay-filter="btn">立即提交</button>
+                  <button type="reset" class="layui-btn layui-btn-primary">重置</button>
+
+                </div>
+            </div>
+
+        </form>
+        </div>
+    </div>
+    <div class="layui-card">
+        {% csrf_token %}
+        <div class="layui-card-body">
+            <div class="layui-row">
+                <div class="layui-col-md12">
+                    <input type="text" name="name" lay-verify="title" placeholder="请输入名称" class="layui-input" style="width: 150px;float: left">
+                    <button class="layui-btn" id="searchBtn" style="float: left">搜索</button>
+                    <button class="layui-btn" id="createDe">创建</button>
+                </div>
+
+                <div class="layui-col-md12" style="margin-top: 10px">
+                    <table id="demo" lay-filter="test"></table>
+                    <!--  行工具 -->
+                    <script type="text/html" id="barDemo">
+                        <a class="layui-btn layui-btn-xs" lay-event="yaml">YAML</a>
+                        <a class="layui-btn layui-btn-xs" lay-event="details">详情</a>
+                        <a class="layui-btn layui-btn-danger layui-btn-xs" lay-event="del">删除</a>
+                    </script>
+                </div>
+
+            </div>
+        </div>
+    </div>
+{% endblock %}
+{% block js %}
+    <script>
+        //获取当前命名空间
+    var storage = window.sessionStorage;
+    var namespace = storage.getItem('namespace');   //从session获取namespace的值layui.use('table',function (){
+
+
+    layui.use(['table','layer','form'], function(){
+    var table = layui.table;
+    var $ = layui.jquery
+    var layer = layui.layer;
+    var form = layui.form
+    table.render({
+        elem: '#demo'
+        ,url: '{% url 'deployment_api' %}?namespace=' + namespace
+        ,page: true
+        ,toolbar: '#toolbarDemo' //开启头部工具栏，并为其绑定左侧模板
+        ,defaultToolbar: ['filter', 'exports', 'print', { //自定义头部工具栏右侧图标。如无需自定义，去除该参数即可
+            title: '刷新'
+            ,layEvent: 'LAYTABLE_TIPS'
+            ,icon: 'layui-icon-refresh'
+            ,onClick: function(obj) {
+                location.reload()
+            }
+        }]
+        ,cols: [[
+          {field: 'name', title: '名称', sort: true}
+          ,{field: 'namespace', title: '命名空间'}
+          ,{field: 'replicas', title: '预期副本数'}
+          ,{field: 'available_replicas', title: '可用副本数'}
+          ,{field: 'labels', title: '标签',templet: labelsFormat}
+          ,{field: 'selector', title: 'Pod标签选择器',templet: selectorFormat}
+          ,{field: 'containers', title: '容器', templet: containersFormat}
+          ,{field: 'create_time', title: '创建时间'}
+          ,{fixed: 'right', title:'操作', toolbar: '#barDemo', width:200}
+        ]],
+        id: 'TT',
+      });
+        // 标签格式化，是一个对象
+        function labelsFormat(d){
+            result = "";
+            for (let key in d.labels) {
+                result += '<span style="border: 1px ;border-radius: 8px">' + key + ':' + d.labels[key] + '</span><br>'
+            }
+            return result
+        }
+        function selectorFormat(d){
+            result = "";
+            for(let key in d.selector) {
+                result += '<span style="border: 1px ;border-radius: 8px">' + key + ':' + d.selector[key] + '</span><br>'
+            }
+            return result
+        }
+        function containersFormat(d) {
+            result = "";
+            for(let key in d.containers) {
+                result += key + '=' + d.containers[key] + '<br>'
+            }
+            return result
+        }
+      table.on('tool(test)', function(obj){
+      var data = obj.data;
+      var csrf_token = $('[name="csrfmiddlewaretoken"]').val();
+      if(obj.event == 'del'){
+          layer.confirm('真的要删除这个Deployment吗？', function(index){
+            $.ajax({
+                type: "DELETE",
+                url: "{% url 'deployment_api' %}",
+                data: data,
+                headers: {'X-CSRFToken': csrf_token},  // 放到请求头，django也会验证这字段
+                success: function (result) {
+                    if (result.code == '0') {
+                        obj.del();  // 临时删除当前页面记录
+                        layer.msg(result.msg, {icon: 6})
+                    } else {
+                        layer.msg(result.msg, {icon: 5})
+                    }
+                },
+                error: function () {
+                    layer.msg("服务器接口异常！", {icon: 5})
+                }
+            });
+            layer.close(index);
+          });
+      } else if(obj.event == 'yaml'){
+            layer.open({
+                title: 'YAML',
+                type: 2,  //内嵌层，从另一个网址加载
+                area: ['50%','60%'],
+                content: '{% url 'ace_editor' %}?resource=deployment&' + 'namespace=' + data['namespace'] + '&name=' + data['name']//将值传给后端
+            })
+      }else if(obj.event == 'details'){
+            window.location.href='{% url 'deployment_details' %}?namespace=' + data['namespace']
+      }
+    });
+    // 监听搜索事件
+    $(document).on('click','#searchBtn', function () {
+        var input_val = $('.layui-input').val();
+       // var input_val = $("input[name='name']").val();
+        table.reload('TT', {
+            where: {   //设定异步数据接口的额外参数，任意设置
+                search_key: input_val
+            },
+            page: {
+                curr: 1  //重新从第 1 页开始
+            }
+        })
+    })
+    $("#createDe").on("click", function () {    //点击创建触发
+        layer.open({            //点击触发弹出层
+            type: 1,
+            content: $('#create')  //让id=create的页面显示
+            ,success: function (index, layero) {
+                form.render('radio');
+                form.render('checkbox');
+                $.ajax({
+                    type: 'GET',
+                    url: '{% url 'namespace_api' %}',
+                    success: function (res) {
+                        if (res.code === 0) {
+                            for (let index in res.data) {
+                                row = res.data[index];
+                                $('#ns').append('<option value=' + row.name + '>' + row.name + '</option>')
+                            }
+                            form.render('select');  //渲染表单属性的下拉框和单选框(需在访问api之后再进行渲染)
+                        }else {
+                            layer.open({
+                                type: 0,
+                                title: ['命名空间查询失败'],
+                                content: '<span style="color: red ;font-size: 18px">' + res.msg + '</span>'
+                            })
+                        }
+                    },
+                    error: function (){
+                        layer.open({
+                            type: 0,
+                            title: ['异常信息'],
+                            content: '获取命名空间列表失败！请检查k8s集群地址或者服务器！'
+                        })
+                    }
+                });
+                form.on('submit(btn)', function(data){      //点击提交获取表单数据
+                    data = data.field;
+                    console.log(data)
+                    var csrf_token = $("input[name='csrfmiddlewaretoken']").val();
+                    data['csrfmiddlewaretoken'] = csrf_token;
+                    $.ajax({
+                        type: "POST",
+                        url: "{% url 'deployment_api' %}",
+                        dataType: "json",
+                        data: data,
+                        success: function(res) {
+                            if (res.code == 0) {
+                                layer.msg(res.msg, {icon: 6});
+
+                                location.reload()
+
+                            } else if (res.code == 1){
+                                layer.msg(res.msg, {icon: 5})
+                            }
+                        },
+                        error: function (res) {
+                            layer.msg("服务器接口异常！", {icon: 5})
+                        }
+                    })
+
+                });
+            }
+        })
+    })
+});
+
+    </script>
+{% endblock %}

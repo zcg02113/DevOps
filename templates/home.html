@@ -1,0 +1,361 @@
+{% extends 'index.html' %}
+{% block title %}首页{% endblock %}
+{% block context %}
+
+
+    <style>
+    .chart {
+        width: 250px;
+        height:200px;
+        float: left;
+        margin-left: 10%
+    }
+    </style>
+
+    <div class="layui-row layui-col-space10">
+
+        <!-- **修改**: 将 col-6 改为 col-md-6 以保持栅格一致 -->
+        <div class="layui-col-md12">
+            <div class="layui-card">
+                <div class="layui-card-header">计算资源</div>
+                <!-- **修改**: 统一卡片高度 -->
+                <div class="layui-card-body" style="height: 400px;overflow: auto;margin-left: 20px">
+                      <div id="chart1" class="chart"></div>
+                      <div id="chart2" class="chart"></div>
+                      <div id="chart3" class="chart"></div>
+                      <div id="chart4" class="chart"></div>
+                </div>
+            </div>
+        </div>
+        <div class="layui-col-md6">
+            <div class="layui-card">
+                <div class="layui-card-header">Pods的内存趋势 </div>
+                <!-- **修改**: 统一卡片高度 -->
+                <div class="layui-card-body" style="height: 400px; ">
+                    <div id="pod-memory-chart" style="width: 100%; height: 100% ;"></div>
+                </div>
+            </div>
+        </div>
+        <div class="layui-col-md6">
+            <div class="layui-card">
+                <div class="layui-card-header">Pods的CPU趋势</div>
+                <!-- **修改**: 统一卡片高度 -->
+                <div class="layui-card-body" style="height: 400px; ">
+                    <div id="pod-cpu-chart" style="width: 100%; height: 100% ;"></div>
+                </div>
+            </div>
+        </div>
+        <div class="layui-col-md12">
+            <div class="layui-card">
+                <div class="layui-card-header layui-form">
+                    <div class="layui-card-header">磁盘 I/O (最近1小时)
+                        <select name="node" id="Node" lay-filter="node_select" style="margin-left: 10px">
+
+                        </select>
+                    </div>
+                </div>
+
+                <div class="layui-card-body">
+                    <!-- 图表容器 -->
+                    <div id="diskIoChart" style="width: 100%; height: 400px;"></div>
+                </div>
+            </div>
+        </div>
+        <div class="layui-col-md12">
+            <div class="layui-card">
+                <div class="layui-card-header">网络流量 (最近1小时)</div>
+                <div class="layui-card-body">
+                    <!-- 图表容器 -->
+                    <div id="networkChart" style="width: 100%; height: 400px;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+{% endblock %}
+{% block js %}
+
+<script src="/static/js/echarts.min.js"></script>
+<script src="/static/js/node-chart-index.js"></script>
+
+
+<script>
+layui.use(['jquery','form','layer','element'], function(){
+    var $ = layui.jquery,
+      form = layui.form,
+      layer = layui.layer,
+      element = layui.element;
+    var currentSelectedNode = "";
+    var myChart = echarts.init(document.getElementById('pod-memory-chart'));
+    var cpuChart = echarts.init(document.getElementById('pod-cpu-chart'));
+    var diskIoChart = echarts.init(document.getElementById('diskIoChart'));
+    var networkChart = echarts.init(document.getElementById('networkChart'));
+    function renderCharts(nodeName) {
+        $.ajax({
+            url: '{% url 'io' %}', // 你的 Django API URL
+            type: 'GET',
+            data: { 'node': nodeName },
+            dataType: 'json',
+            beforeSend: function() {
+                // 显示加载动画
+                diskIoChart.showLoading();
+                networkChart.showLoading();
+            },
+            success: function(res) {
+                if (res.error) {
+                    layer.msg('加载数据失败: ' + res.error, { icon: 2 });
+                    return;
+                }
+                //预处理时间戳
+                const fixData = (dataArray) => {
+                    return dataArray.map(item => {
+                        // 如果 item[0] 是秒(10位)，则乘以 1000 转为毫秒
+                        let timestamp = item[0] < 10000000000 ? item[0] * 1000 : item[0];
+                        return [timestamp, item[1]];
+                    });
+                }
+                // 渲染磁盘 I/O 图表
+                var diskOption = getChartOptionTemplate('磁盘 I/O', ['读取', '写入']);
+                diskOption.series = [
+                    { name: '读取', type: 'line', showSymbol: false, data: fixData(res.disk_io.read) },
+                    { name: '写入', type: 'line', showSymbol: false, data: fixData(res.disk_io.write) }
+                ];
+                diskIoChart.setOption(diskOption);
+
+                // 渲染网络流量图表
+                var networkOption = getChartOptionTemplate('网络流量', ['接收', '发送']);
+                networkOption.series = [
+                    { name: '接收', type: 'line', showSymbol: false, data: fixData(res.network.receive) },
+                    { name: '发送', type: 'line', showSymbol: false, data: fixData(res.network.transmit) }
+                ];
+                networkChart.setOption(networkOption);
+            },
+            error: function() {
+                layer.msg('请求后端接口失败', { icon: 2 });
+            },
+            complete: function() {
+                // 隐藏加载动画
+                diskIoChart.hideLoading();
+                networkChart.hideLoading();
+            }
+        });
+    }
+  $.ajax({
+       url: "{% url 'node_resource' %}",
+       type: 'GET',
+       dataType: 'JSON',
+       success: function (res) {
+           var allocatable_cpu = 0;
+           var allocatable_memory = 0;
+           var cpu_requests = 0;
+           var memory_requests = 0;
+           var schedulable_ok = 0;
+           var schedulable_no = 0;
+           var status_ok = 0;
+           var status_no = 0;
+           for(key in res){
+               allocatable_cpu += res[key]["allocatable_cpu"];
+               allocatable_memory += res[key]["allocatable_memory"];
+               cpu_requests += res[key]["cpu_requests"];
+               memory_requests += res[key]["memory_requests"];
+               if (res[key]["schedulable"]) {   // 布尔值判断，值是null或者true
+                   schedulable_no  += 1
+               } else {
+                   schedulable_ok += 1
+               }
+
+               if (res[key]["status"]) {
+                   status_ok  += 1
+               } else {
+                   status_no += 1
+               }
+           }
+           cpu_percent = 100 * cpu_requests / allocatable_cpu;
+           memory_percent = 100 * memory_requests / allocatable_memory ;
+           node_total = (status_ok+status_no);
+           status_percent = 100 * status_ok / node_total;
+           schedulable_percent = 100 * schedulable_ok / node_total;
+           // Node就绪
+           option1.series[0].data[0].name = "Node状态：准备就绪 " + status_ok + " 台/总数 " + node_total + " 台";
+           option1.series[0].data[0].value = status_percent.toFixed(1);
+           myChart1.setOption(option1, true);
+           // Node可调度
+           option2.series[0].data[0].name = "Node调度：可调度 " + schedulable_ok + " 台/总数 " + node_total + " 台";
+           option2.series[0].data[0].value = schedulable_percent.toFixed(1);
+           myChart2.setOption(option2, true);
+           // CPU
+           option3.series[0].data[0].name = "CPU使用：已分配 " + cpu_requests.toFixed(1) + " 核/可分配 " + allocatable_cpu.toFixed(1) + " 核";
+           option3.series[0].data[0].value = cpu_percent.toFixed(1);
+           myChart3.setOption(option3, true);
+           // 内存
+           option4.series[0].data[0].name = "内存使用：已分配 " + memory_requests.toFixed(1) + " G/可分配 " + allocatable_memory.toFixed(1) + " G";
+           option4.series[0].data[0].value = memory_percent.toFixed(1);
+           myChart4.setOption(option4, true);
+       }
+   });
+  function fetchAndDrawChart() {
+    myChart.showLoading();
+    $.ajax({
+        url: '{% url "memory" %}',
+        type: 'GET',
+        dataType: 'json',
+        success: function(result) {
+            myChart.hideLoading();  // 收到数据后，先隐藏 loading 动画
+            if (result.code == 0) {
+                const top5_data = result.data
+                const podNames = top5_data.map(item => item.name).reverse();        //获取pod名称
+                const podMemories = top5_data.map(item => item.memory_mb).reverse()     //获取pod内存
+                myChart.setOption({
+                    tooltip: {trigger: 'axis', axisPointer: {type: 'shadow'}},
+                    grid: {left: '1%',  containLabel: true},
+                    xAxis: {type: 'category', data: podNames,axisLabel:{interval: 0, }},
+                    yAxis: {type: 'value', name: 'Memory (MB)', boundaryGap: [0, 0.01]},
+                    series: [{
+                        name: 'Memory Usage',
+                        type: 'bar',
+                        barWidth: '40%',
+                        data: podMemories,
+                        label: {show: true, position: 'right', formatter: '{c} MB'}
+                    }]
+                });
+            } else if (result.code === 1) {
+                layer.msg(res.msg, {icon: 5})
+            }
+        },
+        error: function(result){
+            layer.msg("服务器接口异常！", {icon: 5})
+        }
+    });
+  }
+  function fetchAndDrawEChart(){
+    cpuChart.showLoading();
+    $.ajax({
+        url: '{% url "cpu" %}',
+        type: 'GET',
+        dataType: 'json',
+        success: function(result) {
+            cpuChart.hideLoading();  // 收到数据后，先隐藏 loading 动画
+            if (result.code === 0) {
+                const top5_data = result.data
+                const podNames = top5_data.map(item => item.name).reverse();        //获取pod名称
+                const podCpuPercentages = top5_data.map(item => item.cpu.toFixed(2)).reverse(); //保留两位小数
+                cpuChart.setOption({
+                    tooltip: {trigger: 'axis', axisPointer: {type: 'shadow'}},
+                    grid: {left: '2%',  containLabel: true},
+                    xAxis: {type: 'value', name: 'CPU (%)', boundaryGap: [0, 0.01]},
+                    yAxis: {type: 'category', data: podNames,axisLabel:{interval: 0, }},
+                    series: [{
+                        name: 'CPU使用率',
+                        type: 'bar',
+                        barWidth: '60%',
+                        data: podCpuPercentages,
+                        itemStyle: { color: '#5470c6' },
+                        label: {show: true, position: 'right', formatter: '{c} %'}
+                    }]
+                });
+            } else if (result.code === 1) {
+                layer.msg(res.msg, {icon: 5})
+            }
+        },
+        error: function(result){
+            layer.msg("服务器接口异常！", {icon: 5})
+        }
+    });
+
+  }
+  function getChartOptionTemplate(title, legendData) {
+        return {
+            title: { text: title, show: false },
+            tooltip: {
+                trigger: 'axis',
+                formatter: function (params) {
+                    var date = new Date(params[0].value[0]).toLocaleString();
+                    var html = date + '<br/>';
+                    params.forEach(function(item) {
+                        // 将 B/s 转换为更易读的单位
+                        var value = item.value[1];
+                        var units = [' B/s', ' KB/s', ' MB/s', ' GB/s'];
+                        var i = 0;
+                        while(value >= 1024 && i < units.length -1) {
+                            value /= 1024;
+                            i++;
+                        }
+                        html += item.seriesName + ': ' + value.toFixed(2) + units[i] + '<br/>';
+                    });
+                    return html;
+                }
+            },
+            legend: { data: legendData },
+            xAxis: { type: 'time', splitLine: { show: false } },
+            yAxis: {
+                type: 'value',
+                axisLabel: {
+                    formatter: function (value, index) {
+                         var units = ['B/s', 'KB/s', 'MB/s', 'GB/s'];
+                         var i = 0;
+                         while(value >= 1024 && i < units.length -1) {
+                            value /= 1024;
+                            i++;
+                         }
+                         return value.toFixed(2) + ' ' + units[i];
+                    }
+                }
+            },
+            grid: { left: '10%', right: '10%' },
+            series: []
+        };
+  }
+  $.ajax({
+        type: 'GET',
+        url: '{% url 'node_api' %}',
+         success: function (res) {
+                if (res.code === 0 && res.data.length > 0) {
+                // 填充 <option>
+                    res.data.forEach(function(node) {
+                    $('#Node').append('<option value="' + node.name + '">' + node.name + '</option>');
+                });
+                    form.render('select');
+                    currentSelectedNode = res.data[0].name;
+                    renderCharts(currentSelectedNode);
+
+                }else {
+                    layer.open({
+                        type: 0,
+                        title: ['命名空间查询失败'],
+                        content: '<span style="color: red ;font-size: 18px">' + res.msg + '</span>'
+                    })
+                }
+            },
+            error: function (){
+                layer.open({
+                    type: 0,
+                    title: ['异常信息'],
+                    content: '获取命名空间列表失败！请检查k8s集群地址或者服务器！'
+                })
+            }
+    });
+  form.on('select(node_select)', function(data) {
+      console.log("选中的节点是: " + data.value);
+      currentSelectedNode = data.value; // 更新全局记录
+
+      // 关键：在这里立即调用渲染函数，传入新选择的节点名
+      renderCharts(data.value);
+  });
+  // 3. 页面加载后立即执行一次
+    renderCharts();
+    fetchAndDrawChart();
+    fetchAndDrawEChart()
+    // 4. 设置定时器，每 5 秒自动刷新一次图表
+    setInterval(fetchAndDrawChart, 5000); // 5000 毫秒 = 5 秒
+    setInterval(fetchAndDrawEChart, 5000); // 5000 毫秒 = 5 秒
+    setInterval(renderCharts, 60000);
+});
+
+</script>
+{% endblock %}
+
+
+
+
+

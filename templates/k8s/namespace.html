@@ -1,0 +1,150 @@
+{% extends 'index.html' %}
+{% block title %}NameSpace{% endblock %}
+{% block item-1 %}layui-nav-itemed{% endblock %}
+{% block item-1-2 %}layui-this{% endblock %}
+{% block  context %}
+    {% csrf_token %}
+     <span class="layui-breadcrumb"> {# 面板屑----功能模块/node #}
+        <a href="{% url 'home' %}">首页</a>
+        <a href="#">Kubernetes</a>
+        <a href="#">NameSpace</a>
+    </span>
+    <div  id="create" style="display: none">  {# none不显示 #}
+        <form class="layui-form " action="">
+          <div class="layui-form-item" style="padding: 10px 100px 10px 10px">
+            <label class="layui-form-label">命名空间：</label>
+            <div class="layui-input-block">
+              <input type="text" name="name" lay-verify="required" lay-reqtext="名称是必填项!" autocomplete="off" class="layui-input">
+                <br><br>
+              <button type="button" class="layui-btn" lay-submit="" lay-filter="btn" style="margin-left: 25%">立即提交</button>
+            </div>
+          </div>
+        </form>
+    </div>
+    <div class="layui-card-body">
+        <div class="layui-row">
+            <div class="layui-col-md12">
+                <input type="text" name="username" lay-verify="title" placeholder="请输入名称" class="layui-input" style="width: 150px;float: left">
+                <button class="layui-btn" id="searchBtn" style="float: left">搜索</button>
+                <button class="layui-btn" id="createNS">创建</button>
+            </div>
+            <div class="layui-col-md12" style="margin-top: 10px">
+	            <table id="demo" lay-filter="test"></table>
+    <!--  行工具 -->
+                <script type="text/html" id="barDemo">
+                    <a class="layui-btn layui-btn-danger layui-btn-xs" lay-event="del">删除</a>
+                </script>
+            </div>
+        </div>
+    </div>
+{% endblock %}
+{% block js %}
+
+    <script>
+        layui.use(['table','form'],function(){
+        var table = layui.table;
+        var form = layui.form;
+        var $ = layui.jquery;
+        table.render({
+            elem: '#demo' // 选择标签
+            ,url: '/k8s/namespace_api/' //数据接口
+            ,id: 'TT'
+            ,page: true //开启分页
+            ,toolbar: '#toolbarDemo' //开启头部工具栏，并为其绑定左侧模板
+            ,defaultToolbar: ['filter', 'exports', 'print', { //自定义头部工具栏右侧图标。如无需自定义，去除该参数即可
+                title: '刷新'
+                ,layEvent: 'LAYTABLE_TIPS'
+                ,icon: 'layui-icon-refresh'
+                ,onClick: function(obj) {
+                    location.reload()
+                }
+              }]
+            ,cols: [[ //表头
+                {field: 'name', title: '名称',  sort: true}
+                ,{field: 'labels', title: '标签',templet: labels}
+                ,{field: 'create_time', title: '创建时间'}
+                ,{fixed: 'right', title:'操作', toolbar: '#barDemo', width:200}   //添加删除功能
+            ]]
+        });
+        //标签格式化
+            function labels(d){
+                result = '';
+                for(key in d.labels){
+                    result +=   key + ':' +d.labels[key] + '<br>'
+                }
+                return result
+            }
+         //监听行工具事件
+        table.on('tool(test)', function(obj){
+          var data = obj.data;
+          var csrf_token = $('[name="csrfmiddlewaretoken"]').val();
+          if(obj.event === 'del'){
+            layer.confirm('真的删除行么？', function(index){
+              $.ajax({
+                 type: "DELETE",
+                  url: '{% url 'namespace_api' %}',
+                  data: data,
+                  headers: {'X-CSRFToken': csrf_token},  // 放到请求头，django也会验证这字段
+                  success: function (result) {
+                      console.log(result)
+                      if (result.code == '0') {
+                          layer.msg(result.msg,{icon: 6})
+                      } else {
+                          layer.msg(result.msg,{icon: 5})
+                      }
+                  },
+                  error: function (){
+                      layer.msg('服务器接口异常！')
+                  }
+              });
+            });
+          }
+        });
+            //监听搜索事件
+        $(document).on('click','#searchBtn', function () {
+            var input_val = $('.layui-input').val();    //获取输入的内容
+            // var input_val = $("input[name='username']").val();
+            table.reload('TT', {
+                where: {   //设定异步数据接口的额外参数，任意设置
+                    search_key: input_val
+                },
+                page: {
+                    curr: 1  //重新从第 1 页开始
+                }
+            })
+        })
+        //创建
+        $("#createNS").on("click", function () {
+            layer.open({
+                type: 1,
+                content: $('#create').html()  //让id=create的页面显示
+                ,success: function (index, layero) {
+                    form.on('submit(btn)', function(data){
+                        data = data.field;
+                        var csrf_token = $("input[name='csrfmiddlewaretoken']").val();
+                        data['csrfmiddlewaretoken'] = csrf_token;
+                        $.ajax({
+                            type: "POST",
+                            url: "{% url 'namespace_api' %}",
+                            dataType: "json",
+                            data: data,
+                            success: function(res) {
+                                if (res.code == 0) {
+                                    layer.msg(res.msg, {icon: 6});
+                                    location.reload()       //刷新页面
+
+                                } else if (res.code == 1){
+                                    layer.msg(res.msg, {icon: 5})
+                                }
+                            },
+                            error: function (res) {
+                                layer.msg("服务器接口异常！", {icon: 5})
+                            }
+                        })
+                    });
+                }
+            })
+        })
+    });
+    </script>
+{% endblock %}

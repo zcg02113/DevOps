@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>容器日志</title>
+    <script src="/static/layui/layui.js"></script>
+    <style>
+        body {
+            background-color: black
+        }
+        .terminal-window {
+            background-color: #2f4050;
+            width: 99%;
+            color: white;
+            line-height: 25px;
+            margin-bottom: 10px;
+            font-size: 18px;
+            padding: 10px 0 10px 10px;
+        }
+        .containers select,.containers option {
+            width: 100px;
+            height: 25px;
+            font-size: 18px;
+            color: #2F4056;
+            text-overflow: ellipsis;
+            outline: none;
+        }
+        #logs pre {
+            color: #eeeeee;
+        }
+    </style>
+</head>
+
+<body>
+  <div class="terminal-window" id="lll">
+      <div class="containers">
+          Pod名称：{{ connect.pod_name }}&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+          容器：
+          <select name="container_name" id="containerSelect">
+          {% for c in connect.containers %}
+            <option value="{{ c }}">{{ c }}</option>
+          {% endfor %}
+          </select>
+      </div>
+  </div>
+  <div id="logs">
+     <pre></pre>
+  </div>
+</body>
+
+
+<script>
+layui.use('layer', function(){
+  var $ = layui.jquery;
+
+    var auth_type = '{{ connect.auth_type }}';
+    var token = '{{ connect.token }}';
+    var namespace = '{{ connect.namespace }}';
+    var pod_name = '{{ connect.pod_name }}';
+    var container = document.getElementById('containerSelect').value;
+
+     // 打开一个 websocket，django也会把sessionid传过去
+    var ws = new WebSocket('ws://' + window.location.host + '/workload/pod_log/' + namespace + '/' + pod_name + '/' + container + '/?auth_type=' + auth_type + '&token=' + token);
+
+    //打开websocket连接，并打开终端
+    ws.onopen = function () {
+        // 建立WS异常
+        ws.onerror = function (event) {
+          console.log('error:' + e);
+        };
+        //读取服务器发送的数据并写入web终端
+        ws.onmessage = function (event) {
+            $("#logs pre").append(event.data);
+        };
+    };
+});
+</script>
+
+</html>

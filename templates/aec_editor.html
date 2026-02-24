@@ -1,0 +1,78 @@
+{% load static %}
+<link rel="stylesheet" href="/static/layui/css/layui.css">
+<!--必须设置高度，否则无法显示-->
+<div  id="code-editor" style="height: 90%;width:98%;"></div>
+<script src="{% static 'ace/ace.js' %}" type="text/javascript" charset="utf-8"></script>
+<script src="/static/ace/theme/theme-chrome.js" type="text/javascript" charset="utf-8"></script>
+<script src="{% static 'ace/mode/mode-yaml.js' %}" type="text/javascript" charset="utf-8"></script>
+<script src="/static/layui/layui.js"></script>
+<button class="layui-btn" id="editBtn" style="margin-left: 87%">修改</button>
+{% csrf_token %}
+<script>
+     //初始化对象
+     var editor = ace.edit("code-editor");
+
+     //设置编辑器样式，对应theme-*.js文件
+     editor.setTheme("ace/theme/chrome");
+     //设置代码语言，对应mode-*.js文件
+     editor.session.setMode("ace/mode/yaml");
+     //设置打印线是否显示
+     editor.setShowPrintMargin(false);
+     //字体大小
+     editor.setFontSize(16);
+     //设置只读（true时只读，用于展示代码）
+     editor.setReadOnly(false);
+
+    layui.use(['layer'], function(){
+        var $ = layui.jquery;
+        layer = layui.layer;  // 获取到使用的组件
+
+        // 后端传：命名空间，资源，名称 。传过来的不是json对象，要转换
+        var namespace = "{{ data.namespace }}";
+        var resource = "{{ data.resource }}";
+        var name = "{{ data.name }}";
+        var id = "{{ data.id }}";
+        $.ajax({
+           url: '{% url "export_resource_api" %}?' + 'namespace=' + namespace + '&resource=' + resource + "&name=" + name +"&id=" + id,
+           type: 'GET',
+           // 提交成功回调函数
+           success: function (res) {
+               console.log(res)
+               if(res.code == '0') {
+                   editor.setValue(res.data);   // 设置编辑内容
+                   editor.gotoLine(1);
+               } else {
+                   layer.msg(res.msg, {icon: 5})
+               }
+           },
+           // 访问接口失败函数
+           error: function (res) {
+               layer.msg("服务器接口异常！" , {icon:5})
+           }
+        });
+
+        $('#editBtn').on('click',function (){
+            content = editor.getValue();
+            var csrf_token = $('[name="csrfmiddlewaretoken"]').val();
+            data = {'yaml_content': content, 'csrfmiddlewaretoken':csrf_token}
+            $.ajax({
+                url: '{% url 'apply_yaml' %}',
+                type: 'POST',
+                data: data,
+                success: function (result) {
+                  if (result.code == '0') {
+                      layer.msg(result.msg, {icon: 6})
+                  } else {
+                      layer.msg(result.msg, {icon: 5})
+                  }
+              },
+              error: function () {
+                  layer.msg("服务器接口异常！", {icon: 5})
+              }
+            })
+        })
+    })
+
+
+</script>
+

@@ -1,0 +1,124 @@
+{% extends 'index.html' %}
+{% block title %}Node{% endblock %}
+{% block item-1 %}layui-nav-itemed{% endblock %}
+{% block item-1-2 %}layui-this{% endblock %}
+{% block  context %}
+    <style>
+        /*
+         * 1. td[data-field="label"] 精准定位到 "标签" 这一列的单元格。
+         * 2. .layui-table-cell 是单元格内部的 div 容器。
+        */
+
+    </style>
+    {% csrf_token %}
+     <span class="layui-breadcrumb"> {# 面板屑----功能模块/node #}
+        <a href="{% url 'home' %}">首页</a>
+        <a href="#">Kubernetes</a>
+        <a href="#">Node</a>
+    </span>
+	   {% csrf_token %}
+    <div class="layui-card-body">
+        <div class="layui-row">
+            <div class="layui-col-md12" style="">
+                <input type="text" name="username" lay-verify="title" placeholder="请输入名称" class="layui-input" style="width: 150px;float: left">
+                <button class="layui-btn" id="searchBtn" style="float: left;">搜索</button>
+            </div>
+            <div class="layui-col-md12" style="margin-top: 10px">
+	            <table id="demo" lay-filter="test"></table>
+            </div>
+            <div class="layui-col-md12" >
+                    <table id="demo" lay-filter="test"></table>
+                    <!--  行工具 -->
+                    <script type="text/html" id="barDemo">
+                      <a class="layui-btn layui-btn-xs" lay-event="yaml">YAML</a>
+                      <a class="layui-btn layui-btn-danger layui-btn-xs" lay-event="details">详情</a>
+                    </script>
+            </div>
+        </div>
+    </div>
+{% endblock %}
+{% block js %}
+    <script>
+    layui.use(['table', 'layer'], function(){
+        var table = layui.table;
+        var $ = layui.jquery;
+        var layer = layui.layer;
+        table.render({
+            elem: '#demo',
+            id: 'nodeTable', // 新增：为表格实例设置一个ID，非常重要！
+            url: '/k8s/node_api/',
+            page: true,
+            toolbar: '#toolbarDemo',
+            defaultToolbar: ['filter', 'exports', 'print', {
+                title: '刷新'
+                ,layEvent: 'LAYTABLE_TIPS'
+                ,icon: 'layui-icon-refresh'
+                ,onClick: function(obj) {
+                    location.reload()
+                }
+            }],
+            cols: [[
+                {field: 'name', title: '名称', sort: true, minWidth: 150}, // 修改：增加最小宽度
+                {field: 'label' ,title: '标签', templet: labels,width: 150}, // 修改：增加最小宽度
+                {field: 'status', title: '状态', minWidth: 50},
+                {field: 'scheduler',title: '可调度', Width: 50},
+                {field: 'cpu', title: 'CPU', Width: 20},
+                {field: 'memory',title: '内存', minWidth: 70},
+                {field: 'create_time', title: '创建时间', templet: formatTime, minWidth: 160},
+                {field: 'cri_version',title: '容器运行时', minWidth: 150},
+                {field: 'kebelet_version' , title: 'Kubelet版本', minWidth: 120},
+                {fixed: 'right', title:'操作', toolbar: '#barDemo', width:150}
+            ]]
+        });
+
+        // 标签显示优化函数
+        function labels(d){
+            let result = '';
+            // d.labels 可能不存在，需要做个判断
+            if (d.labels) {
+                for(key in d.labels){
+                    result +=   key + ':' + d.labels[key] + '<br>';
+                }
+            }
+            return result;
+        }
+        // 时间显示优化函数
+        function formatTime(d) {
+            let rawTime = d.create_time;
+            if (!rawTime) {
+                return '';
+            }
+            // 将 '2026-01-27T08:51:15Z' 格式化为 '2026-01-27 08:51:15'
+            return rawTime.replace('T', ' ').substring(0, 19);
+        }
+        // 监听搜索事件
+        $(document).on('click','#searchBtn', function () {
+            var input_val = $("input[name='username']").val();
+            // 修复：使用正确的表格ID 'nodeTable'
+            table.reload('nodeTable', {
+                where: {
+                    search_key: input_val
+                },
+                page: {
+                    curr: 1  // 重新从第 1 页开始
+                }
+            });
+        });
+        //yaml功能实现
+        table.on('tool(test)', function(obj){
+        var data = obj.data;
+        var csrf_token = $('[name="csrfmiddlewaretoken"]').val();
+        if(obj.event === 'yaml'){
+            layer.open({
+                title: 'YAML',
+                type: 2,  //内嵌层，从另一个网址加载
+                area: ['50%','60%'],
+                content: '{% url 'ace_editor' %}?resource=node&' + 'namespace=' + data['namespace'] + '&name=' + data['name']//将值传给后端
+            })
+        } else if(obj.event === 'details'){
+            window.location.href='{% url 'node_details' %}?name=' + data['name']  //重定向到详情页面
+       }
+    });
+    });
+    </script>
+{% endblock %}

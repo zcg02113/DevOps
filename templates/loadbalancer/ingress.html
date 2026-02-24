@@ -1,0 +1,136 @@
+{% extends 'index.html' %}
+{% block title %}Ingress{% endblock %}
+{% block item-3 %}layui-nav-itemed{% endblock %}
+{% block item-3-2 %}layui-this{% endblock %}
+{% block  context %}
+   <span class="layui-breadcrumb">
+        <a href="{% url 'home' %}">首页</a>
+        <a href="#">负载均衡</a>
+        <a><cite>Ingress</cite></a>
+    </span>
+    <hr>
+    <div class="layui-card">
+        {% csrf_token %}
+        <div class="layui-card-body">
+            <div class="layui-row">
+                <div class="layui-col-md12">
+                    <input type="text" name="name" lay-verify="title" placeholder="请输入名称" class="layui-input" style="width: 150px;float: left">
+                    <button class="layui-btn" id="searchBtn" style="float: left">搜索</button>
+                </div>
+
+                <div class="layui-col-md12 " style="margin-top: 10px">
+                    <table id="demo" lay-filter="test"></table>
+                    <!--  行工具 -->
+                    <script type="text/html" id="barDemo">
+                      <a class="layui-btn layui-btn-xs layui-btn-primary" lay-event="yaml">YAML</a>
+                      <a class="layui-btn layui-btn-danger layui-btn-xs" lay-event="del">删除</a>
+                    </script>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+{% endblock %}
+{% block js %}
+<script>
+    // 获取当前命名空间
+    var storage = window.sessionStorage;
+    var namespace = storage.getItem('namespace');
+
+  layui.use('table', function(){
+  var table = layui.table;
+  var $ = layui.jquery;
+
+  table.render({
+    elem: '#demo' // 选择table元素
+    ,url: '{% url 'ingress_api' %}?namespace=' + namespace //数据接口, namespace值从当前session中获取
+    ,page: true //开启分页
+    ,toolbar: '#toolbarDemo' //开启头部工具栏，并为其绑定左侧模板
+    ,defaultToolbar: ['filter', 'exports', 'print', { //自定义头部工具栏右侧图标。如无需自定义，去除该参数即可
+         title: '刷新'
+          ,layEvent: 'LAYTABLE_TIPS'
+          ,icon: 'layui-icon-refresh'
+          ,onClick: function(obj) {
+              location.reload()
+          }
+      }]
+    ,cols: [[ //表头
+        {field: 'name', title: '名称', sort: true, width: 300}
+        ,{field: 'namespace', title: '命名空间',width: 200, sort: true}
+        ,{field: 'http_hosts', title: 'HTTP',templet: httpFormat}
+        ,{field: 'https_hosts', title: 'HTTPS',templet: httpsFormat}
+        ,{field: 'service', title: '关联 Service', templet: serviceFormat}
+        ,{field: 'create_time', title: '创建时间',width: 200}
+        ,{fixed: 'right', title:'操作', toolbar: '#barDemo',width: 150}
+    ]],
+    id: 'TT',
+  });
+
+    // 标签格式化，是一个对象
+    function httpFormat(d){
+        return "域名: " + d.http_hosts.host + '<br>' + "路径: " + d.http_hosts.path + '<br>'
+    }
+    function httpsFormat(d){
+        if(d.https_hosts != null){
+            return "域名: " + d.https_hosts.host + '<br>' + "证书Secret名称: " + d.https_hosts.secret_name + '<br>';
+        } else {
+            return "None"
+        }
+    }
+    function serviceFormat(d) {
+        return "名称: " + d.http_hosts.service_name + '<br>' + "端口: " + d.http_hosts.service_port + '<br>';
+    }
+
+     //监听行工具事件
+    table.on('tool(test)', function(obj){
+      var data = obj.data;
+      var csrf_token = $('[name="csrfmiddlewaretoken"]').val();
+      if(obj.event === 'del'){
+        layer.confirm('真的要删除吗？', function(index){
+          $.ajax({
+             type: "DELETE",
+              url: "{% url 'ingress_api' %}",
+              data: data,
+              headers: {'X-CSRFToken': csrf_token},  // 放到请求头，django也会验证这字段
+              success: function (result) {
+                  if (result.code == '0') {
+                      obj.del();  // 临时删除当前页面记录
+                      layer.msg(result.msg, {icon: 6})
+                  } else {
+                      layer.msg(result.msg, {icon: 5})
+                  }
+              },
+              error: function () {
+                  layer.msg("服务器接口异常！", {icon: 5})
+              }
+          });
+
+          layer.close(index);
+        });
+      } else if(obj.event === 'yaml'){
+            layer.open({
+                title: "YAML",
+                type: 2, // 内嵌层，从另一个网址加载
+                area: ['50%', '60%'],
+                content: '{% url "ace_editor" %}?resource=ingress&' + 'namespace=' + data['namespace'] + '&name=' + data['name']
+            })
+      }
+    });
+    // 监听搜索事件
+    $(document).on('click','#searchBtn', function () {
+        var input_val = $('.layui-input').val();
+       // var input_val = $("input[name='name']").val();
+        table.reload('TT', {
+            where: {   //设定异步数据接口的额外参数，任意设置
+                search_key: input_val
+            },
+            page: {
+                curr: 1  //重新从第 1 页开始
+            }
+        })
+    })
+});
+</script>
+
+{% endblock %}

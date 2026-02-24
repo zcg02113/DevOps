@@ -1,0 +1,16 @@
+from kubernetes import client
+import os
+configuration = client.Configuration()
+configuration.host = "https://192.168.37.200:6443"  # APISERVER地址
+# ca_file = os.path.join(os.getcwd(),"ca.crt") # K8s集群CA证书（/etc/kubernetes/pki/ca.crt）
+# configuration.ssl_ca_cert= ca_file
+configuration.verify_ssl = False   # 启用证书验证
+token = "eyJhbGciOiJSUzI1NiIsImtpZCI6IlFjMVU3WmpydnlWdUpXR1VhdU5TWUUxeG45VEZuYmJqbTVpTTg2Y0ZXazgifQ.eyJpc3MiOiJrdWJlcm5ldGVzL3NlcnZpY2VhY2NvdW50Iiwia3ViZXJuZXRlcy5pby9zZXJ2aWNlYWNjb3VudC9uYW1lc3BhY2UiOiJrdWJlLXN5c3RlbSIsImt1YmVybmV0ZXMuaW8vc2VydmljZWFjY291bnQvc2VjcmV0Lm5hbWUiOiJkYXNoYm9hcmQtYWRtaW4tdG9rZW4tYjI2Y3giLCJrdWJlcm5ldGVzLmlvL3NlcnZpY2VhY2NvdW50L3NlcnZpY2UtYWNjb3VudC5uYW1lIjoiZGFzaGJvYXJkLWFkbWluIiwia3ViZXJuZXRlcy5pby9zZXJ2aWNlYWNjb3VudC9zZXJ2aWNlLWFjY291bnQudWlkIjoiMGI1ZGMzNDktNjRmOC00OThkLTkzMDktZDg3OGZjNjYyZWI0Iiwic3ViIjoic3lzdGVtOnNlcnZpY2VhY2NvdW50Omt1YmUtc3lzdGVtOmRhc2hib2FyZC1hZG1pbiJ9.s9STXJsz0B_VCAwk3q7R36My_h4FTs1SdgnKS2HZjToe1P1Gqxd7WEHzKYAtPsuP9xG3gdWXRBHzUm7ELPUSspIxGpKyxzKUWndNQJHwu5pO6lnzt2eWel9TGzC7XlY01rSBUYRj6nfY_oc-IyWHPDM2NDMp2S5WNGF1zEt1ErlHuYNoo3DrHqsAFfPvmv2p-kXKyyzkYMXEHCF2AVfDRwCR7qog_7Nstw0tpJqvYOpSOfSdNWh3C1SoYEy7FedqVGLrUe6hWaExa6HAmLQQGfkhrQW5atcJZlxZNLCWP-0uovK07CdgSEDT5UXA97gONa0yw5gGw3xJZGySwRtIBw"  # 指定Token字符串，下面方式获取
+configuration.api_key = {"authorization": "Bearer " + token}
+client.Configuration.set_default(configuration)
+apps_api = client.AppsV1Api()
+
+for dp in apps_api.list_deployment_for_all_namespaces().items:
+    print(dp)
+core_api = client.CoreApi()
+core_api.get_api_versions()
