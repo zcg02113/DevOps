@@ -5,7 +5,13 @@
 
 >  本项目使用python开发，使用django+Layui开发
 ## 内置功能
-1.
+1.集群资源的增删改查
+
+2.prometheus数据展示
+
+3.容器日志实时查看
+
+4.交互式容器终端
 ## 准备工作
 ```bash
   channels==4.3.2
@@ -87,7 +93,7 @@ static-map      = /static=/root/DevOps/static
 导入数据表
 mysql -u 用户名 -p 数据库名 < devops.sql
 ```
-#反向代理
+##反向代理
 ```
 yum install epel-release –y
 yum install nginx –y
@@ -107,6 +113,8 @@ vi /etc/nginx/nginx.conf
         }
 }
 ```
+##项目访问
+http://127.0.0.1:8080/
 
 <img width="1858" height="854" alt="image" src="https://github.com/user-attachments/assets/94d4efce-de61-4ac1-b7ae-f2f1604e2549" />
 <img width="1876" height="826" alt="image" src="https://github.com/user-attachments/assets/1a009812-b705-4441-8b76-1004728df765" />
