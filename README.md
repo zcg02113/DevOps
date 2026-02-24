@@ -84,8 +84,30 @@ static-map      = /static=/root/DevOps/static
         'PORT': '3306',
     }
 }
-
+导入数据表
+mysql -u 用户名 -p 数据库名 < devops.sql
 ```
+#反向代理
+```
+yum install epel-release –y
+yum install nginx –y
+vi /etc/nginx/nginx.conf
+…
+    server {
+        listen       80 default_server;
+        server_name  _;
+
+        location / {
+           include     uwsgi_params;  # 导入模块用于与uwsgi通信
+           uwsgi_pass unix:/opt/devops/uwsgi/uwsgi.sock; 
+        }
+        # 静态文件目录
+        location /static {
+           alias /opt/devops/static;
+        }
+}
+```
+
 <img width="1858" height="854" alt="image" src="https://github.com/user-attachments/assets/94d4efce-de61-4ac1-b7ae-f2f1604e2549" />
 <img width="1876" height="826" alt="image" src="https://github.com/user-attachments/assets/1a009812-b705-4441-8b76-1004728df765" />
 <img width="1863" height="872" alt="image" src="https://github.com/user-attachments/assets/1e2d27ba-dfad-48e9-b8ea-97fb9b286996" />
